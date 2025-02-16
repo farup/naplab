@@ -10,13 +10,21 @@ import matplotlib.pyplot as plt
 
 from naplab.naplab_parser.parsers.gnss_parser import GNSSParser
 
+
+
+
 def get_avgerage_freq(timestamps): 
 
     microsec_diffs = np.mean(np.abs(np.array(timestamps[:-1]).astype(int) - np.array(timestamps[1:]).astype(int)))
 
     return 1 / (microsec_diffs / 1e6)
 
+def get_freq_ration(timestamps1, timestamps2):
 
+    freq1 = round(get_avgerage_freq(timestamps1))
+    freq2 = round(get_avgerage_freq(timestamps2))
+
+    return freq1 / freq2
 
 
 def get_sync_diff(timestamps1, timestamps2):
@@ -31,34 +39,35 @@ def get_sync_diff(timestamps1, timestamps2):
     return seconds
 
 
-def preparare_timestsamps(timestamps):
+def preparare_timestsamps(cam_timestamps):
     """
     Some camera timestamps list are longer than other camera timestamps list for the same trip. 
     Cut out the end last time stamp 
+
+    args: 
+        cam_timestamps (dict)
     
     """
 
-    lens = [len(timestamp) for timestamp in timestamps.values()]
+    lens = [len(timestamps) for timestamps in cam_timestamps.values()]
     min_len = min(lens)
     
-
-    for cam_name, timestamp in timestamps.items(): 
+    for cam_name, timestamp in cam_timestamps.items(): 
         if len(timestamp) > min_len:
             timestamps[cam_name] = (timestamp[:-(len(timestamp) - min_len)]) 
 
     return timestamps
  
 
-
-def get_best_syncs(cams_timestamps, gnss_timestamps, freq_ratio):
+def get_best_syncs(cams_timestamps, gnss_timestamps):
     """ Calculate the sync alignment in microsconds with different start indexes"""
 
     res = {}
     for cam_name, cam_timestamps in cams_timestamps.items(): 
+        freq_ration = get_freq_ration(cam_timestamps, gnss_timestamps)
         res[cam_name] = get_best_start_stop_index(cam_timestamps, gnss_timestamps, freq_ratio)
 
     return res
-
 
 
 def get_best_start_stop_index(file_1_timestamps, file_2_timestamps, freq_ratio, runs=20):

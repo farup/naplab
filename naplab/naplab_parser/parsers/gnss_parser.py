@@ -38,9 +38,41 @@ class GNSSParser:
         return decimal_degrees
     
 
-    @staticmethod
-    def compute_yaws(): 
+    def compute_bearing(lat1, lon1, lat2, lon2):
+        """
+        Compute yaw (bearing) from point (lat1, lon1) to (lat2, lon2).
+        """
+        lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
+        
+        d_lon = lon2 - lon1
+        x = np.sin(d_lon) * np.cos(lat2)
+        y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(d_lon)
+        
+        yaw = np.arctan2(x, y)  # Bearing in radians
 
+        yaw_deg = (np.degrees(yaw) + 360) % 360  # Convert to degrees
+        
+        return yaw_deg
+    
+
+    @staticmethod
+    def get_ego_positions_in_meters(lat_lon):
+        """
+        Extract coordinates in 3857 (in meters for latitude and longitude)
+        
+        """
+        # Create a GeoDataFrame from latitude and longitude
+        geometry = [Point(coord[1], coord[0]) for coord in lat_lon]
+
+        gdf = gpd.GeoDataFrame(geometry=geometry)
+
+        gdf.set_crs("EPSG:4326", inplace=True)
+        # EPSG:4326 (WGS 84)  represents locations using latitude and longitude (degrees)
+        # standard CRS for GPS, Google Earth, OpenStreetMap, and most global datasets.
+
+        gdf = gdf.to_crs(epsg=3857)
+
+        return gdf.get_coordinates()
     
 
     @staticmethod
@@ -88,7 +120,7 @@ class GNSSParser:
     
 
     @staticmethod
-    def plot_route(lat_lon):
+    def plot_route(lat_lon, save_path=False):
         # Create a GeoDataFrame from latitude and longitude
         geometry = [Point(coord[1], coord[0]) for coord in lat_lon]
 
@@ -122,6 +154,11 @@ class GNSSParser:
         plt.xlabel("Longitude")
         plt.ylabel("Latitude")
         plt.legend()
+
+        if save_path: 
+            plt.savefig(os.path.join(save_path,'route.png'))
+
+        
 
 
     
