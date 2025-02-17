@@ -12,21 +12,24 @@ from naplab.naplab_parser.tables import Scene, Sample, SampleData, CalibratedSen
 
 class NapLabParser: 
 
-    def __init__(self, datafolder, trip, save_path, selected_cams, nuscnes_path=False):
+    def __init__(self, raw_dataroot, trip, processed_dataroot, selected_cams, nuscnes_path=False, nbr_samples=40):
 
-        if not os.path.exists(dataroot := os.path.join(datafolder, trip)):
-            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), dataroot)
+        if not os.path.exists(raw_dataroot := os.path.join(raw_dataroot, trip)):
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), raw_dataroot)
         
-        if not os.path.exists(save_path):
-            os.makedirs(save_path)
+        if not os.path.exists(processed_dataroot):
+            os.makedirs(processed_dataroot)
 
-        self.dataroot = dataroot
-        self.save_path = save_path
+        self.trip = trip
+        self.raw_dataroot = raw_dataroot
+        self.processed_dataroot = processed_dataroot
         self.selected_cams = selected_cams
         self.start_cam_index = None
         self.end_gnss_index = None
         self.nuscnes_path = nuscnes_path
 
+        GNSSParser.set_nbr_samples(nbr_samples=nbr_samples)
+       
         self.load_paths()
         cams_timestamps = parsing_utils.get_cams_timestamps(self.cams_timestamps_files)
 
@@ -57,21 +60,19 @@ class NapLabParser:
         self.camera_parameters = CamParser.get_cams_parameters(self.camera_parameters_file[0], self.selected_cams)
         self.ego_xy_position = GNSSParser.get_ego_xy_positions(self.lat_lon)
 
-        lat_lon = self.lat_lon[2000]
-        lat_lon2 = self.lat_lon[2001]
-
         self.bearings = GNSSParser.compute_bearing(self.lat_lon)
+
+    def set_nbr_samples_in_scenes(self, nbr_samples): 
+        GNSSParser.set_nbr_samples(nbr_samples=nbr_samples)
         
-
-        print("TER")
-
 
     def load_paths(self):
 
-        self.absoulte_files = parsing_utils.get_subfolders(self.dataroot)
+        self.absoulte_files = parsing_utils.get_subfolders(self.raw_dataroot)
         self.camera_parameters_file = parsing_utils.get_files(self.absoulte_files, file_format="json", file_key="camera")
         self.gnss_file = parsing_utils.get_files(self.absoulte_files, file_format="bin", file_key="gnss50")
-        self.cams_timestamps_files = parsing_utils.get_filetypes(self.absoulte_files, file_format="timestamps")
+        self.cams_timestamps_files = parsing_utils.get_files(self.absoulte_files, file_format="timestamps", selected_cams=self.selected_cams)
+        self.cams_files = parsing_utils.get_files(self.absoulte_files, file_format="h264", selected_cams=self.selected_cams)
     
     def set_start_stop_indexes(self, cam_name): 
 
@@ -85,11 +86,13 @@ class NapLabParser:
 
         results = []
         for cam_name, cam_timestamps in cams_timestamps.items():
-            freq_ration = round(timestamps_utils.get_freq_ration(cam_timestamps,gnss_timestamps ))
-            sec = timestamps_utils.get_sync_diff(cam_timestamps[::freq_ration], gnss_timestamps)
+            freq_ratio = round(timestamps_utils.get_freq_ration(cam_timestamps,gnss_timestamps ))
+            sec = timestamps_utils.get_sync_diff(cam_timestamps[::freq_ratio], gnss_timestamps)
             results.append(sec)
 
         average_sec_diff = np.mean(np.abs(np.array(results)), axis=-1)
+
+        self.freq_ratio = freq_ratio # for use later, assue all cams are the same now
 
         print(f"----------- Average Synce Diff To GNSS: {average_sec_diff} seconds | Cam Start Index {self.start_cam_index} | GNSS End Index {self.end_gnss_index} | ------------------")
 
@@ -109,15 +112,13 @@ class NapLabParser:
         self.get_average_sync_diff(self.best_cams_timestamps, self.best_gnss_timestamps)
 
 
-    def visualize_route(self):
+    def visualize_route(self, processed_dataroot):
 
-        GNSSParser.plot_route(self.lat_lon[:], save_path=self.dataroot)
+        GNSSParser.plot_route(self.lat_lon[:], processed_dataroot=processed_dataroot)
 
-    def visualize_route_bearings(self, start_refrence_point=False): 
+    def visualize_route_bearings(self, refrence_frame=False, processed_dataroot=False, scenes=False): 
 
-        vectors, _ = GNSSParser.create_direction_vectors(self.bearings[:])
-
-        GNSSParser.plot_route(self.lat_lon[:], save_path=self.dataroot, vectors=vectors)
+        GNSSParser.plot_route_bearings(bearings=self.bearings[:], ego_xy_positions=self.ego_xy_position[:], freq_ratio=self.freq_ratio, refrence_frame=refrence_frame, processed_dataroot=processed_dataroot, scenes=scenes)
     
     def visualize_sync_diffs(self, save=False):
 
@@ -125,9 +126,30 @@ class NapLabParser:
 
 
     def extract_images(self, scenes=False):
-        
-        CamParser.extract_images()
 
+        cams_samples_path = os.path.join(self.processed_dataroot, self.trip, 'samples')
+        cam_names = list(self.camera_parameters.keys())
+
+        cam_folders = parsing_utils.create_cam_folders(cams_samples_path, cam_names)
+
+        if scenes:
+            samples_idx = GNSSParser.samples_idx_from_scenes(scenes=scenes, max_len=len(self.best_gnss_timestamps))
+            self.extract_images_samples_idx(samples_idx, cam_folders, self.cams_files[:])
+
+        else: 
+            print("")
+
+        # CamParser.extract_images(raw_dataroot=self.raw_dataroot)
+
+    
+    def extract_images_samples_idx(self, samples_idx, cam_folders, cams_files): 
+
+        
+        for cam_file, cam_folder, (cam_name, cam_timestamps) in zip(cams_files, cam_folders, self.camera_parameters.items()): 
+            CamParser.extract_images(cam_file, cam_folder, cam_name, cam_timestamps, samples_idx, self.freq_ratio)
+
+
+        
     def load_cams_timestamps(self):
         pass
 
@@ -139,8 +161,6 @@ class NapLabParser:
 
     def create_calibrated_sensor(self):
         cd_sensors = []
-
-
 
         for i, (k, v) in enumerate(self.camera_parameters.items()):
             cd_sensor = CalibratedSensor(translation=v['t'], rotation=transformation_utils.euler_to_quaternion_yaw(v['roll_pitch_yaw']),\
@@ -172,9 +192,9 @@ class NapLabParser:
 if __name__ == "__main__": 
 
 
-    datafolder = "/cluster/home/terjenf/MapTR/NAP_raw_data"
+    raw_dataroot = "/cluster/home/terjenf/MapTR/NAP_raw_data"
     trip = "Trip077"
-    save_path = "/cluster/home/terjenf/naplab/data"
+    processed_dataroot = "/cluster/home/terjenf/naplab/data"
     nuscene_path = "/cluster/home/terjenf/naplab/naplab/naplab_parser/metadata_nuscenes/nuscene_metadata.json"
 
     selected_cams = [
@@ -186,10 +206,15 @@ if __name__ == "__main__":
         'C5_R1']
 
 
-    naplab_parser = NapLabParser(datafolder=datafolder, trip=trip, save_path=save_path, selected_cams=selected_cams)
+    naplab_parser = NapLabParser(raw_dataroot=raw_dataroot, trip=trip, processed_dataroot=processed_dataroot, selected_cams=selected_cams)
 
-    
+    naplab_parser.visualize_route(processed_dataroot=processed_dataroot)
+
+    naplab_parser.visualize_route_bearings(processed_dataroot=processed_dataroot, refrence_frame=500)
+    naplab_parser.visualize_route_bearings(processed_dataroot=processed_dataroot, refrence_frame=500, scenes=(50,60))
+    naplab_parser.visualize_route_bearings(processed_dataroot=processed_dataroot, refrence_frame=500, scenes=(105,131))
 
 
+    naplab_parser.extract_images(scenes=(105,131))
 
-    print("Bru")
+    print("HE")

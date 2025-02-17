@@ -5,6 +5,20 @@ import numpy as np
 
 
 
+def create_cam_folders(path, cam_names):
+
+    new_folders = []
+    for cam_name in cam_names: 
+        new_folder = os.path.join(path, cam_name)
+        if not os.path.exists(new_folder): 
+            os.makedirs(new_folder)
+            print("Created Folder", new_folder)
+            new_folders.append(new_folder)
+        else:
+            new_folders.append(new_folder)
+        
+    return new_folders 
+
 
 def get_subfolders(root_folder): 
     """Return subfolders/files of a folder """
@@ -39,21 +53,29 @@ def get_filetypes(files, file_format):
             
     return selected_files
 
-def get_files(files, file_format, file_key=False):
+def get_files(files, file_format, file_key=False, selected_cams=False):
     """ 
     Return files with file_formt (e.g. .bin) and  file_key in filename 
     
     """
 
     selected_filestypes = get_filetypes(files, file_format)
-
+    
     if file_key:
-
         selected_files = [] 
         for selected_filestype in selected_filestypes: 
             if file_key in selected_filestype: 
                 selected_files.append(selected_filestype)
         return selected_files
+    
+
+    if selected_cams: 
+        selected_files = [] 
+        for selected_filestype in selected_filestypes: 
+            if selected_filestype.split("/")[-1].split(".")[0] in selected_cams:
+                selected_files.append(selected_filestype)
+        return selected_files
+
 
     return selected_filestypes
 
@@ -79,7 +101,6 @@ def get_cams_timestamps(timestamps_files):
 
     cam_names = [timstamp_file.split("/")[-1].split(".")[0] for timstamp_file in  timestamps_files]
     cams_timestamps = {}
-
 
     for cam_name, timestamps_file in zip(cam_names, timestamps_files): 
         cams_timestamps[cam_name] = get_timestamps(timestamps_file)

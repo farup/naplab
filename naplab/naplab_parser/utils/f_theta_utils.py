@@ -14,7 +14,6 @@ def get_fw_coeff(w, bw_coeff):
 
     r = np.linspace(0, w/2, 500)
 
-    print(f"Number of distances (points) used to calculate fw_coeff: {len(r)}")
 
     thetas = [poly_func(r, bw_coeff) for r in  r]
     forward_degree = len(bw_coeff) - 1
@@ -25,8 +24,6 @@ def get_fw_coeff(w, bw_coeff):
     
     fw_coeff_list = [float(f) for f in fw_coeff]
 
-    print(f"FW: {fw_coeff}\n")
-    print(f"BW: {bw_coeff}\n")
 
     return fw_coeff_list
 

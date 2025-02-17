@@ -1,5 +1,8 @@
 
 import json
+import cv2
+import os
+
 from naplab.naplab_parser.utils import f_theta_utils
 
 class CamParser: 
@@ -17,9 +20,74 @@ class CamParser:
         with open(nuscenes_cam_path, 'r') as file:
             cls.nuscenes_cam = json.load(file)
 
+
+
     @staticmethod
-    def extract_images(trip, scenes=False): 
+    def save_images_from_camera(cam_file, cam_folder, cam_name, cam_timestamps, samples_idx, freq_ratio):
+
+        """
+        Extraxt and save images.
+
+        Aargs:
+            cam_folder_path: (str) folder to save extracted images
+            camera_file: (str) path to camera file
+            time_stamps_cam: corresponding timestamps for the camera_file
+    
+        """
+
+        cam_cap = cv2.VideoCapture(cam_file)
+        print("FPS: ", cam_cap.get(cv2.CAP_PROP_FPS))
+
+
+        if not cam_cap.isOpened():
+            print("Error: Unable to open the .h264 file")
+        else:
+            frame_count = 0
+            while True:
+
+                ret, frame = cam_cap.read()
+                if not ret:
+                    break
+                
+                if frame_count not in samples_idx:
+                    frame_count += 1
+                    continue
+
+                if frame_count > max(samples_idx):
+                    break
+
+                # Save the frame as an image file
+
+                if frame_count - min(samples_idx) % freq_ratio != 0: 
+                    frame_count += 1
+                    continue
+
+                frame_filename = os.path.join(cam_folder, f"{cam_name}_{cam_timestamps[frame_count]}.png")
+                frame_count += 1
+
+                if os.path.exists(frame_filename): 
+                    continue
+
+                cv2.imwrite(frame_filename, frame)
+                print(f"Saved: {frame_filename}")
+
+                
+                # if frame_count >= 550:
+                #     break
+            # Release resources
+            cam_cap.release()
+
+            print(f"Extracted {frame_count} frames to {cam_folder}")
+
+
+
+
+    @staticmethod
+    def extract_images(trip, sample_idxs=False): 
         pass
+        
+        
+
     
     def get_nuscenes_cam_intrinsics(naplab_cam):
         cam_intrinsics = CamParser.naplab2nuscenes[naplab_cam]['camera_intrinsic']

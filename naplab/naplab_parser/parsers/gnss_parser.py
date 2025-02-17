@@ -14,12 +14,10 @@ import sys
 class GNSSParser: 
 
 
-    @staticmethod
-    def parse():
-        pass
-
+    @classmethod
+    def set_nbr_samples(cls, nbr_samples):
+        cls.nbr_samples = nbr_samples
     
-
     @staticmethod
     def nmea_to_decimal(coord):
         """ Convert MNEA latidue and and longitude to decimal degrees
@@ -161,12 +159,10 @@ class GNSSParser:
                     latitude = float(coord[:2][0].strip())  #  6324.8972646 
                     longitude = float(coord[2:][0].strip()) # 1023.9477304 
                     
-
                     lat = GNSSParser.nmea_to_decimal(str(latitude)) # 63.41495441
                     lon = GNSSParser.nmea_to_decimal(str(longitude))
 
                     lat_lon.append([lat, lon])
-
                     
                     time_stamp = (int(line.split(b" ")[-1].strip()))
 
@@ -179,7 +175,44 @@ class GNSSParser:
         return lat_lon, timestamps_gnss
     
     @staticmethod
-    def plot_route_bearings(vectors, ego_xy_positions, freq_ratio, refrence_frame=0, save=False):
+    def samples_idx_from_scenes(scenes, max_len):
+        if isinstance(scenes, list): 
+            scenes_sample_idx = [scene * GNSSParser.nbr_samples for scene in scenes] # each scene has (40) samples 
+            if (max(scenes_sample_idx)+ GNSSParser.nbr_samples) > max_len: 
+                raise ValueError("Scenes not in data")
+
+            indx_list = []
+            for scene_sample_idx in scenes_sample_idx:
+
+                end_scene_idx =+ (scene_sample_idx + GNSSParser.nbr_samples)
+
+
+                indx_list = np.arange(scene_sample_idx, end_scene_idx) 
+                indx_list.append(indx_list)
+            
+            return np.array(indx_list)
+
+             
+        elif isinstance(scenes, tuple):
+            scenes_sample_idx = [scene * GNSSParser.nbr_samples for scene in scenes]
+            if (max(scenes_sample_idx) + GNSSParser.nbr_samples) > max_len:
+                raise ValueError("Scenes not in data")
+            
+            return np.arange(scenes_sample_idx[0], scenes_sample_idx[1])
+            
+
+        elif isinstance(scenes, int):
+            scenes_sample_idx = scenes * GNSSParser.nbr_samples
+            if ((scenes_sample_idx) + GNSSParser.nbr_samples) > max_len: 
+                raise ValueError("Scenes not in data")
+
+            end_scene_idx =+ (scenes_sample_idx + GNSSParser.nbr_samples)
+
+            return np.arange(scenes_sample_idx, end_scene_idx)
+
+          
+    @staticmethod
+    def plot_route_bearings(bearings, ego_xy_positions, freq_ratio, refrence_frame=0, processed_dataroot=False, scenes=False):
 
         x_tranlsation = ego_xy_positions.x - ego_xy_positions.x[0]
         y_tranlsation = ego_xy_positions.y - ego_xy_positions.y[0]
@@ -188,13 +221,40 @@ class GNSSParser:
         plt.scatter(x_tranlsation[::freq_ratio], y_tranlsation[::freq_ratio])
 
         if refrence_frame:
-            plt.scatter(x_tranlsation[refrence_frame], y_tranlsation[refrence_frame])
+            vectors, _ = GNSSParser.create_direction_vectors(bearings, refrence_frame)
+            plt.scatter(x_tranlsation[refrence_frame], y_tranlsation[refrence_frame], s=200, label="Refrence Point For Relative Direction" )
+
+        else: 
+            vectors, _ = GNSSParser.create_direction_vectors(bearings)
+            plt.scatter(x_tranlsation[refrence_frame], y_tranlsation[refrence_frame], s=200, label="Refrence Point For Relative Direction" )
         
         plt.quiver(x_tranlsation[1::20], y_tranlsation[1::20], vectors[::20, 1], vectors[::20, 0])
 
+        if scenes:
+            sample_idxs = GNSSParser.samples_idx_from_scenes(scenes=scenes, max_len=len(x_tranlsation))
+            
+            ego_scenes_x = x_tranlsation[sample_idxs]
+            ego_scenes_y = y_tranlsation[sample_idxs]
 
+
+            plt.scatter(ego_scenes_x[::freq_ratio], ego_scenes_y[::freq_ratio], 5, color="red", label="Selected Scenes")
+        
+        plt.xlabel("Meters")
+        plt.ylabel("Meters")
+        plt.title("Positions with Direction")
+        plt.legend()
+
+        if processed_dataroot:
+            if scenes:
+                filename = f'route_with_bearings_ref_frame{refrence_frame}_{str(scenes)}.png'
+            else:
+                filename = f'route_with_bearings_ref_frame{refrence_frame}.png'
+            plt.savefig(os.path.join(processed_dataroot, filename))
+            print("Plot saved ", os.path.join(processed_dataroot,filename)) 
+
+    
     @staticmethod
-    def plot_route(lat_lon, save_path=False):
+    def plot_route(lat_lon, processed_dataroot=False):
         # Create a GeoDataFrame from latitude and longitude
         geometry = [Point(coord[1], coord[0]) for coord in lat_lon]
 
@@ -225,20 +285,11 @@ class GNSSParser:
 
         # Add labels, title, and other customizations
         plt.title("Latitude/Longitude on Map")
-        plt.xlabel("Longitude")
-        plt.ylabel("Latitude")
+        plt.xlabel("Longitude in meters")
+        plt.ylabel("Latitude in meters")
         plt.legend()
 
-        if save_path: 
-            plt.savefig(os.path.join(save_path,'route.png'))
+        if processed_dataroot: 
+            plt.savefig(os.path.join(processed_dataroot,'route.png'))
+            print("Plot saved ", os.path.join(processed_dataroot,'route.png'))
 
-        
-
-
-    
-
-
-
-    
-
-    
