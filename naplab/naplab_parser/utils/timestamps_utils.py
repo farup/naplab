@@ -12,7 +12,6 @@ from naplab.naplab_parser.parsers.gnss_parser import GNSSParser
 
 
 
-
 def get_avgerage_freq(timestamps): 
 
     microsec_diffs = np.mean(np.abs(np.array(timestamps[:-1]).astype(int) - np.array(timestamps[1:]).astype(int)))
@@ -35,7 +34,7 @@ def get_sync_diff(timestamps1, timestamps2):
     np_timestamps2 = np.array(timestamps2).astype(int)
 
     seconds = (np.mean(np.abs(np_timestamps1 - np_timestamps2))) / 1e6
-    print(f"Average time (in seconds) between timestamps: {seconds}")
+    # print(f"Average time (in seconds) between timestamps: {seconds}")
     return seconds
 
 
@@ -54,17 +53,18 @@ def preparare_timestsamps(cam_timestamps):
     
     for cam_name, timestamp in cam_timestamps.items(): 
         if len(timestamp) > min_len:
-            timestamps[cam_name] = (timestamp[:-(len(timestamp) - min_len)]) 
+            cam_timestamps[cam_name] = (timestamp[:-(len(timestamp) - min_len)]) 
 
-    return timestamps
+    return cam_timestamps
  
 
 def get_best_syncs(cams_timestamps, gnss_timestamps):
     """ Calculate the sync alignment in microsconds with different start indexes"""
 
+    print("Starting Best Sync Calculations...")
     res = {}
     for cam_name, cam_timestamps in cams_timestamps.items(): 
-        freq_ration = get_freq_ration(cam_timestamps, gnss_timestamps)
+        freq_ratio = round(get_freq_ration(cam_timestamps, gnss_timestamps))
         res[cam_name] = get_best_start_stop_index(cam_timestamps, gnss_timestamps, freq_ratio)
 
     return res
@@ -83,16 +83,14 @@ def get_best_start_stop_index(file_1_timestamps, file_2_timestamps, freq_ratio, 
     assert len(file_1_timestamps[::freq_ratio]) >= len(file_2_timestamps), f"Assume arg1 can be sampled every {freq_ratio}, due to higher freq "
     dict_best = {'best_score': 1000000000}
     
-    lens = [len(timestamp) for timestamp in timestamps]
-    max_len = max(lens)
-
+ 
     seconds_list = []
     arg1_index_starts = []
     arg2_index_ends = []
 
     for i in range(runs):
         if i == 0:
-            print("Start")
+            #print("Start")
             seconds = get_sync_diff(file_1_timestamps[::freq_ratio], file_2_timestamps)
             if seconds < dict_best['best_score']:
                 dict_best['best_score'] = seconds 
@@ -111,7 +109,7 @@ def get_best_start_stop_index(file_1_timestamps, file_2_timestamps, freq_ratio, 
             arg1_index_start =  3*(i+1) + 1
             arg2_index_end = -i-2
 
-        print(f"\nArgument1 start indx: {arg1_index_start}, Argument2 end index: {arg2_index_end}")
+        # print(f"\nArgument1 start indx: {arg1_index_start}, Argument2 end index: {arg2_index_end}")
 
         seconds = get_sync_diff(file_1_timestamps[arg1_index_start::freq_ratio], file_2_timestamps[:arg2_index_end])
         if seconds < dict_best['best_score']:
@@ -171,9 +169,6 @@ def plot_sync_diff(res, save=False):
     plt.clf()
 
         
-
-
-
 
 
 if __name__ == "__main__": 

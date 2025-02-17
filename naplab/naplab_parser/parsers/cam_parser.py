@@ -4,14 +4,18 @@ from naplab.naplab_parser.utils import f_theta_utils
 
 class CamParser: 
 
+    nuscenes_cam = False
+    nuscenes_cam_intrinsics = None
+    nusecnes_image_size = None
+
     @classmethod
-    def set_naplab2nuscens(cls, naplab2nuscene):
-        cls.naplab2nuscenes = naplab2nuscenes 
+    def set_naplab2nuscens(cls, naplab2nuscens):
+        cls.naplab2nuscenes = naplab2nuscens
 
     @classmethod
     def load_nuscenes_camera_parameters(cls, nuscenes_cam_path): 
         with open(nuscenes_cam_path, 'r') as file:
-            cls.nuscenes_cam = json.load(f)
+            cls.nuscenes_cam = json.load(file)
 
     @staticmethod
     def extract_images(trip, scenes=False): 
@@ -25,6 +29,9 @@ class CamParser:
     @staticmethod
     def get_cams_parameters(calibrated_sesnsor_file, selected_cams=False): 
         """ Return """
+
+        nuscenes_cam_intrinsics = None
+        nusecnes_image_size = None
 
         with open(calibrated_sesnsor_file, 'r') as file:
             json_obj = json.load(file)
@@ -57,7 +64,8 @@ class CamParser:
 
                     fw_coeff = f_theta_utils.get_fw_coeff(width, bw_coeff)
 
-                    nuscenes_cam_intrinsics, nusecnes_image_size = get_nuscenes_cam_intrinsics(car_mask['name'])
+                    if CamParser.nuscenes_cam:
+                        nuscenes_cam_intrinsics, nusecnes_image_size = CamParser.get_nuscenes_cam_intrinsics(car_mask['name'])
 
                     cam_data[car_mask['name']] = {'roll_pitch_yaw': roll_pitch_yaw, 't':t, 'cx': cx, 'cy': cy, \
                         'height': height, 'width': width, 'bw_coeff': bw_coeff, \

@@ -1,14 +1,5 @@
+import numpy as np
 
-
-
-def get_cam_props(cam_name, cam_param):
-    w = cam_parm[cam_name]['width']
-    h = cam_parm[cam_name]['height']
-    cx = cam_parm[cam_name]['cx']
-    cy = cam_parm[cam_name]['cy']
-    bw_coeff = cam_parm[cam_name]['float_bw']
-   
-    return w, h, round(cx), round(cy), float_bw
 
 
 def poly_func(r, float_bw):
@@ -23,9 +14,9 @@ def get_fw_coeff(w, bw_coeff):
 
     r = np.linspace(0, w/2, 500)
 
-    print(f"Number of distances (points) used to calculate: {len(r)}")
+    print(f"Number of distances (points) used to calculate fw_coeff: {len(r)}")
 
-    thetas = [poly(r, bw_coeff) for r in  r]
+    thetas = [poly_func(r, bw_coeff) for r in  r]
     forward_degree = len(bw_coeff) - 1
 
     fw_coeff = np.polyfit(thetas,r, forward_degree)
@@ -34,7 +25,8 @@ def get_fw_coeff(w, bw_coeff):
     
     fw_coeff_list = [float(f) for f in fw_coeff]
 
-    print(f"BW: {bw_coeff}, FW: {fw_coeff}")
+    print(f"FW: {fw_coeff}\n")
+    print(f"BW: {bw_coeff}\n")
 
     return fw_coeff_list
 
