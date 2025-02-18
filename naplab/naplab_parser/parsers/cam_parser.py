@@ -23,7 +23,7 @@ class CamParser:
 
 
     @staticmethod
-    def save_images_from_camera(cam_file, cam_folder, cam_name, cam_timestamps, samples_idx, freq_ratio):
+    def save_images_from_camera(cam_file, cam_folder, cam_name, cam_timestamps, frames_idx, freq_ratio):
 
         """
         Extraxt and save images.
@@ -49,16 +49,16 @@ class CamParser:
                 if not ret:
                     break
                 
-                if frame_count not in samples_idx:
+                if frame_count not in frames_idx:
                     frame_count += 1
                     continue
 
-                if frame_count > max(samples_idx):
+                if frame_count > max(frames_idx):
                     break
 
                 # Save the frame as an image file
 
-                if frame_count - min(samples_idx) % freq_ratio != 0: 
+                if ((frame_count - min(frames_idx)) % freq_ratio) != 0: 
                     frame_count += 1
                     continue
 
@@ -81,17 +81,11 @@ class CamParser:
 
 
 
-
-    @staticmethod
-    def extract_images(trip, sample_idxs=False): 
-        pass
-        
-        
-
     
     def get_nuscenes_cam_intrinsics(naplab_cam):
-        cam_intrinsics = CamParser.naplab2nuscenes[naplab_cam]['camera_intrinsic']
-        image_size = CamParser.naplab2nuscenes[naplab_cam]['img_size']
+        cam_intrinsics =  CamParser.nuscenes_cam[CamParser.naplab2nuscenes[naplab_cam]]['camera_intrinsic']
+        image_size =  CamParser.nuscenes_cam[CamParser.naplab2nuscenes[naplab_cam]]['img_size']
+
         return cam_intrinsics, image_size
 
     @staticmethod
@@ -137,7 +131,7 @@ class CamParser:
 
                     cam_data[car_mask['name']] = {'roll_pitch_yaw': roll_pitch_yaw, 't':t, 'cx': cx, 'cy': cy, \
                         'height': height, 'width': width, 'bw_coeff': bw_coeff, \
-                            'fw_coeff': fw_coeff, 'nuscenes_cam_intrinsics': nuscenes_cam_intrinsics, 'nusecnes_image_size': nusecnes_image_size}
+                            'fw_coeff': fw_coeff, 'nuscenes_cam_intrinsics': nuscenes_cam_intrinsics, 'nuscenes_image_size': nusecnes_image_size}
 
                 except KeyError as e:
                     print("Error", e)

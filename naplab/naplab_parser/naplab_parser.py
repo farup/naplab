@@ -1,12 +1,13 @@
 import os
 import numpy as np
+import copy
 
 from naplab.naplab_parser.parsers.gnss_parser import GNSSParser
 from naplab.naplab_parser.parsers.cam_parser import CamParser
 import errno
 
 from naplab.naplab_parser.utils import parsing_utils, timestamps_utils, transformation_utils
-from naplab.naplab_parser.tables import Scene, Sample, SampleData, CalibratedSensor, EgoPose, Map
+from naplab.naplab_parser.tables import Scene, Sample, SampleData, CalibratedSensor, EgoPose, NabLabMap
 
 
 
@@ -22,13 +23,14 @@ class NapLabParser:
 
         self.trip = trip
         self.raw_dataroot = raw_dataroot
-        self.processed_dataroot = processed_dataroot
+        self.processed_dataroot = os.path.join(processed_dataroot, self.trip) 
         self.selected_cams = selected_cams
         self.start_cam_index = None
         self.end_gnss_index = None
         self.nuscnes_path = nuscnes_path
 
-        GNSSParser.set_nbr_samples(nbr_samples=nbr_samples)
+        self.set_nbr_samples_in_scenes(nbr_samples=nbr_samples)
+        
        
         self.load_paths()
         cams_timestamps = parsing_utils.get_cams_timestamps(self.cams_timestamps_files)
@@ -62,7 +64,8 @@ class NapLabParser:
 
         self.bearings = GNSSParser.compute_bearing(self.lat_lon)
 
-    def set_nbr_samples_in_scenes(self, nbr_samples): 
+    def set_nbr_samples_in_scenes(self, nbr_samples):
+        self.nbr_samples = nbr_samples 
         GNSSParser.set_nbr_samples(nbr_samples=nbr_samples)
         
 
@@ -116,9 +119,9 @@ class NapLabParser:
 
         GNSSParser.plot_route(self.lat_lon[:], processed_dataroot=processed_dataroot)
 
-    def visualize_route_bearings(self, refrence_frame=False, processed_dataroot=False, scenes=False): 
+    def visualize_route_bearings(self, refrence_frame=False, scenes=False, save=False): 
 
-        GNSSParser.plot_route_bearings(bearings=self.bearings[:], ego_xy_positions=self.ego_xy_position[:], freq_ratio=self.freq_ratio, refrence_frame=refrence_frame, processed_dataroot=processed_dataroot, scenes=scenes)
+        GNSSParser.plot_route_bearings(bearings=self.bearings[:], ego_xy_positions=self.ego_xy_position[:], freq_ratio=self.freq_ratio, refrence_frame=refrence_frame, scenes=scenes, save=save, processed_dataroot=self.processed_dataroot)
     
     def visualize_sync_diffs(self, save=False):
 
@@ -127,36 +130,55 @@ class NapLabParser:
 
     def extract_images(self, scenes=False):
 
-        cams_samples_path = os.path.join(self.processed_dataroot, self.trip, 'samples')
+        cams_samples_path = os.path.join(self.processed_dataroot, 'samples')
         cam_names = list(self.camera_parameters.keys())
 
         cam_folders = parsing_utils.create_cam_folders(cams_samples_path, cam_names)
 
         if scenes:
             samples_idx = GNSSParser.samples_idx_from_scenes(scenes=scenes, max_len=len(self.best_gnss_timestamps))
-            self.extract_images_samples_idx(samples_idx, cam_folders, self.cams_files[:])
+            frames_idx = samples_idx * self.freq_ratio # one sample every third frame
+            self.extract_images_samples_idx(frames_idx, cam_folders, self.cams_files[:])
 
         else: 
             print("")
 
         # CamParser.extract_images(raw_dataroot=self.raw_dataroot)
 
-    
-    def extract_images_samples_idx(self, samples_idx, cam_folders, cams_files): 
+    def extract_images_samples_idx(self, frames_idx, cam_folders, cams_files): 
 
         
-        for cam_file, cam_folder, (cam_name, cam_timestamps) in zip(cams_files, cam_folders, self.camera_parameters.items()): 
-            CamParser.extract_images(cam_file, cam_folder, cam_name, cam_timestamps, samples_idx, self.freq_ratio)
+        for cam_file, cam_folder, (cam_name, cam_timestamps) in zip(cams_files, cam_folders, self.best_cams_timestamps.items()): 
+            CamParser.save_images_from_camera(cam_file, cam_folder, cam_name, cam_timestamps, frames_idx, self.freq_ratio)
 
 
-        
     def load_cams_timestamps(self):
         pass
 
-    def create_database(self):
+    def create_database(self, description):
         
-        cd_sensors = self.create_calibrated_sensor()
+        naplab_map = self.create_naplab_map(description=description)
+        cb_sensors = self.create_calibrated_sensor()
         ego_poses = self.create_ego_pose()
+        scenes, samples, samples_data = self.create_samples(naplab_map=naplab_map, calibrated_sensors=cb_sensors, ego_poses=ego_poses)
+
+
+        parsing_utils.save_tables_json(self.processed_dataroot, naplab_map, "naplab_map.json")
+        parsing_utils.save_tables_json(self.processed_dataroot, cb_sensors, "calibrated_sensors.json")
+        parsing_utils.save_tables_json(self.processed_dataroot, ego_poses, "ego_poses.json")
+        parsing_utils.save_tables_json(self.processed_dataroot, scenes, "scenes.json")
+        parsing_utils.save_tables_json(self.processed_dataroot, samples, "samples.json")
+        parsing_utils.save_tables_json(self.processed_dataroot, samples_data, "samples_data.json")
+        print("Finished saving tables!")
+
+
+    def create_naplab_map(self, description): 
+
+        naplab_maps = []
+        naplab_map = NabLabMap(trip=self.trip, description=description, lat_lon_coordinates=self.lat_lon, bearings=list(self.bearings))
+        naplab_maps.append(naplab_map.__dict__)
+        
+        return naplab_maps
 
 
     def create_calibrated_sensor(self):
@@ -164,7 +186,7 @@ class NapLabParser:
 
         for i, (k, v) in enumerate(self.camera_parameters.items()):
             cd_sensor = CalibratedSensor(translation=v['t'], rotation=transformation_utils.euler_to_quaternion_yaw(v['roll_pitch_yaw']),\
-                 cx=v['cx'], cy=v['cy'], fw_coeff=v['fw_coeff'], bw_coeff=v['bw_coeff'], nuscene_camera_intrinsics=v['nuscenes_cam_intrinsics'], nuscene_image_size=v['nuscene_image_size'])
+                 cx=v['cx'], cy=v['cy'], fw_coeff=v['fw_coeff'], bw_coeff=v['bw_coeff'], nuscene_camera_intrinsics=v['nuscenes_cam_intrinsics'], nuscene_image_size=v['nuscenes_image_size'])
             cd_sensors.append(cd_sensor.__dict__)
 
         return cd_sensors
@@ -177,16 +199,62 @@ class NapLabParser:
         y_translation = self.ego_xy_position.y - self.ego_xy_position.y[0]
 
         for i, gnss_timestamp in enumerate(self.best_gnss_timestamps): 
-            ego_poses = EgoPose(translation=[float(x_translation[i]), float(y_translation[i]), float(0)], rotation=0, timestamp=gnss_timestamp)
+            ego_pose = EgoPose(translation=[float(x_translation[i]), float(y_translation[i]), float(0)], rotation=0, timestamp=gnss_timestamp)
+            ego_poses.append(ego_pose.__dict__)
+        
+
+        return ego_poses
+    
+
+    def prepare_cam_timestaps_freq(self, cams_timestamps): 
+
+        new_dict = {}
+
+        for k, v in cams_timestamps.items(): 
+            new_dict[k] = v[::3]
+
+        return new_dict
+
+    def generate_filenmae(self, cam, timestamp):
+        return os.path.join(self.processed_dataroot, "samples", cam, f"{cam}_{timestamp}.png")
+    
+    def create_samples(self, naplab_map, calibrated_sensors, ego_poses):
+
+        samples = []
+        scenes = []
+        samples_data = []
+        scene_count = 0
+        freq_best_cams_timestamps = self.prepare_cam_timestaps_freq(self.best_cams_timestamps)
+
+        for i, timestamp_gnss in enumerate(self.best_gnss_timestamps): 
+            
+            sample = Sample(timestamp=timestamp_gnss)
+
+            if i % self.nbr_samples == 0:
+                scene = Scene(naplab_map_token=naplab_map[0]['token'], scene_name=f"scene_{scene_count}", nbr_samples=(40 if i%40 == 0 else i%40), dataroot=self.raw_dataroot)
+                scenes.append(scene.__dict__)
+                scene.first_sample_token = sample.token
+                scene_count += 1
+            
+            sample.scene_token = scene.token
+            sample.scene_name =scene.scene_name
+           
+            data = {}
 
 
-    def create_samples(self):
-        pass
+            for j, (cam_name, timestamps_cam) in enumerate(freq_best_cams_timestamps.items()):
 
+                sample_data = SampleData(sample_token=sample.token, calibrated_sensor_token=calibrated_sensors[j]['token'],  ego_pose_token=ego_poses[i]['token'], timestamp=int(timestamps_cam[i]), filename=self.generate_filenmae(cam_name, timestamps_cam[i]), next_idx=None, prev_idx=None)
+                samples_data.append(sample_data.__dict__)
 
-    def create_samples_data(self): 
-        pass
+                data[cam_name] = sample_data.token
+            
+            sample.data = data
+            samples.append(sample.__dict__)
 
+        return scenes, samples, samples_data
+
+        
 
 
 if __name__ == "__main__": 
@@ -206,15 +274,17 @@ if __name__ == "__main__":
         'C5_R1']
 
 
-    naplab_parser = NapLabParser(raw_dataroot=raw_dataroot, trip=trip, processed_dataroot=processed_dataroot, selected_cams=selected_cams)
+    naplab_parser = NapLabParser(raw_dataroot=raw_dataroot, trip=trip, processed_dataroot=processed_dataroot, selected_cams=selected_cams, nuscnes_path=nuscene_path)
 
     naplab_parser.visualize_route(processed_dataroot=processed_dataroot)
 
-    naplab_parser.visualize_route_bearings(processed_dataroot=processed_dataroot, refrence_frame=500)
-    naplab_parser.visualize_route_bearings(processed_dataroot=processed_dataroot, refrence_frame=500, scenes=(50,60))
-    naplab_parser.visualize_route_bearings(processed_dataroot=processed_dataroot, refrence_frame=500, scenes=(105,131))
+    naplab_parser.visualize_route_bearings(refrence_frame=500, save=True)
+    naplab_parser.visualize_route_bearings(refrence_frame=500, scenes=(50,60), save=True)
+    naplab_parser.visualize_route_bearings(refrence_frame=500, scenes=(105,131), save=True)
 
 
-    naplab_parser.extract_images(scenes=(105,131))
+    #naplab_parser.extract_images(scenes=(50,60))
 
-    print("HE")
+    description="Handels -> Eglseterbru -> Nidarosdomen -> Samfundet -> Høyskoleringen"
+
+    naplab_parser.create_database(description=description)

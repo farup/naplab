@@ -80,21 +80,6 @@ class GNSSParser:
         return fwd_azimuth
     
 
-    def compute_yaw(lat1, lon1, lat2, lon2):
-        """
-        Compute yaw (bearing) from point (lat1, lon1) to (lat2, lon2).
-        """
-        lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
-        
-        d_lon = lon2 - lon1
-        x = np.sin(d_lon) * np.cos(lat2)
-        y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(d_lon)
-        
-        yaw = np.arctan2(x, y)  # Bearing in radians
-
-        yaw_deg = (np.degrees(yaw) + 360) % 360  # Convert to degrees
-    
-        return yaw_deg
     
     @staticmethod
     def create_direction_vectors(bearings, start_refrence_point=False, negate=False):
@@ -212,7 +197,7 @@ class GNSSParser:
 
           
     @staticmethod
-    def plot_route_bearings(bearings, ego_xy_positions, freq_ratio, refrence_frame=0, processed_dataroot=False, scenes=False):
+    def plot_route_bearings(bearings, ego_xy_positions, freq_ratio, refrence_frame=0, scenes=False, save=False, processed_dataroot=None):
 
         x_tranlsation = ego_xy_positions.x - ego_xy_positions.x[0]
         y_tranlsation = ego_xy_positions.y - ego_xy_positions.y[0]
@@ -244,13 +229,18 @@ class GNSSParser:
         plt.title("Positions with Direction")
         plt.legend()
 
-        if processed_dataroot:
+        if save:
             if scenes:
                 filename = f'route_with_bearings_ref_frame{refrence_frame}_{str(scenes)}.png'
             else:
                 filename = f'route_with_bearings_ref_frame{refrence_frame}.png'
-            plt.savefig(os.path.join(processed_dataroot, filename))
-            print("Plot saved ", os.path.join(processed_dataroot,filename)) 
+
+            path = os.path.join(processed_dataroot, "plots")
+            if not os.path.exists(path): 
+                os.makedirs(path)
+
+            plt.savefig(os.path.join(path, filename))
+            print("Plot saved ", os.path.join(path,filename)) 
 
     
     @staticmethod
@@ -290,6 +280,10 @@ class GNSSParser:
         plt.legend()
 
         if processed_dataroot: 
-            plt.savefig(os.path.join(processed_dataroot,'route.png'))
-            print("Plot saved ", os.path.join(processed_dataroot,'route.png'))
+            path = os.path.join(processed_dataroot, "plots")
+            if not os.path.exists(path): 
+                os.makedirs(path)
+
+            plt.savefig(os.path.join(path,'route.png'))
+            print("Plot saved ", os.path.join(path,'route.png'))
 

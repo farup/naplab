@@ -1,3 +1,4 @@
 
 
-from . import naplab_parser, naplab
+#from . import naplab_parser
+from . import naplab

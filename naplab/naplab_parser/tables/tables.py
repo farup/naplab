@@ -11,11 +11,11 @@ def generate_token():
 
 
 @dataclass
-class Map: 
+class NabLabMap: 
     trip: str
     description: str
     lat_lon_coordinates: list
-    yaws: list
+    bearings: list
     token: str = field(init=False)  # Excluded from __init__, set later
 
     def __post_init__(self):
@@ -26,6 +26,7 @@ class Scene:
     scene_name: str
     nbr_samples: int
     dataroot: str
+    naplab_map_token: str
     first_sample_token: str = field(default="")
     last_sample_token: str = field(default="")
     map_token: str = field(default="")
@@ -36,9 +37,9 @@ class Scene:
 
 @dataclass      
 class Sample: 
-    scene_token: str
-    scene_name: str
     timestamp: int
+    scene_token: any = field(default=None)
+    scene_name: any = field(default=None)
     data: any = field(default=None) # default to None, can be set later
     next_idx: any = field(default=None)
     prev_idx: any = field(default=None)

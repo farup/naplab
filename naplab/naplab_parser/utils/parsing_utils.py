@@ -1,7 +1,23 @@
 import os 
 import errno
-
+import json
 import numpy as np
+
+
+
+def save_tables_json(processed_dataroot, table, filename):
+
+    processed_dataroot_folder = os.path.join(processed_dataroot, "tables")
+
+    if not os.path.exists(processed_dataroot_folder):
+        os.makedirs(processed_dataroot_folder)
+
+    new_file = os.path.join(processed_dataroot_folder, filename)
+    with open(new_file, 'w') as f: 
+        json.dump(table, f, indent=4)
+        print("Saved to", new_file)
+
+
 
 
 
