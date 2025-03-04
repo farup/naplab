@@ -1,4 +1,8 @@
-from . import parsers
-from . import tables
+
+
+print("Print Parser")
+
+from .naplab_parser import NapLabParser
+
 
 

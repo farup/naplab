@@ -44,6 +44,7 @@ class GNSSParser:
         """
 
         # Create a GeoDataFrame from latitude and longitude
+        
         geometry = [Point(coord[1], coord[0]) for coord in lat_lon]
 
         gdf = gpd.GeoDataFrame(geometry=geometry)
@@ -139,25 +140,40 @@ class GNSSParser:
     
             for line in f.readlines():
                 if line.startswith(b"$GPGGA"):
+                    
+                    try: 
+                        if isinstance(line, bytes):
                 
-                    coord = (line.split(b",")[2:6])
-                    latitude = float(coord[:2][0].strip())  #  6324.8972646 
-                    longitude = float(coord[2:][0].strip()) # 1023.9477304 
-                    
-                    lat = GNSSParser.nmea_to_decimal(str(latitude)) # 63.41495441
-                    lon = GNSSParser.nmea_to_decimal(str(longitude))
+                            coord = (line.split(b",")[2:6])  
+                        
+                        else: 
+                            coord = (line.split(",")[2:6])                                 # b'$GPGGA,071840.90,6324.8972646,N,01023.9477304,E,4,14,1.1,65.70,M,0.0,M,0.9,0246*75 1684739920978036\r\n' Trip077
+                        latitude = float(coord[:2][0].strip())  #  6324.8972646 
+                        longitude = float(coord[2:][0].strip()) # 1023.9477304 
+                        
+                        lat = GNSSParser.nmea_to_decimal(str(latitude)) # 63.41495441
+                        lon = GNSSParser.nmea_to_decimal(str(longitude))
 
-                    lat_lon.append([lat, lon])
-                    
-                    time_stamp = (int(line.split(b" ")[-1].strip()))
+                        lat_lon.append([lat, lon])
+                        
+                        time_stamp = (int(line.split(b" ")[-1].strip()))
 
-                    #dict_obj[time_stamp] = {'x': x, 'y':y}
-                    timestamps_gnss.append(time_stamp)
-                    
-                    count += 1
+                        #dict_obj[time_stamp] = {'x': x, 'y':y}
+                        timestamps_gnss.append(time_stamp)
+                        
+                        count += 1
+                    except: 
+                        print("Something wrong with line from GNNS data")
+                        print(line)
+                        lat_lon.append([None, None])
+                        time_stamp = (int(line.split(b" ")[-1].strip()))
+                        timestamps_gnss.append(time_stamp)
 
         print(f"Read and extracted {count} lines of data")
-        return lat_lon, timestamps_gnss
+
+        np_lat_lon = np.array(lat_lon)
+        filter_lat_lon = np_lat_lon[np_lat_lon != None]
+        return filter_lat_lon.reshape(-1, 2), timestamps_gnss
     
     @staticmethod
     def samples_idx_from_scenes(scenes, max_len):
@@ -166,16 +182,16 @@ class GNSSParser:
             if (max(scenes_sample_idx)+ GNSSParser.nbr_samples) > max_len: 
                 raise ValueError("Scenes not in data")
 
-            indx_list = []
+            indx_list_ = []
             for scene_sample_idx in scenes_sample_idx:
 
                 end_scene_idx =+ (scene_sample_idx + GNSSParser.nbr_samples)
 
 
                 indx_list = np.arange(scene_sample_idx, end_scene_idx) 
-                indx_list.append(indx_list)
+                indx_list_.append(indx_list)
             
-            return np.array(indx_list)
+            return np.concat(np.array(indx_list_))
 
              
         elif isinstance(scenes, tuple):
@@ -202,7 +218,7 @@ class GNSSParser:
         x_tranlsation = ego_xy_positions.x - ego_xy_positions.x[0]
         y_tranlsation = ego_xy_positions.y - ego_xy_positions.y[0]
 
-        plt.figure(figsize=(10,15))
+        plt.figure(figsize=(8,12))
         plt.scatter(x_tranlsation[::freq_ratio], y_tranlsation[::freq_ratio])
 
         if refrence_frame:
@@ -226,7 +242,7 @@ class GNSSParser:
         
         plt.xlabel("Meters")
         plt.ylabel("Meters")
-        plt.title("Positions with Direction")
+        #plt.title("Positions with Direction")
         plt.legend()
 
         if save:
@@ -244,7 +260,7 @@ class GNSSParser:
 
     
     @staticmethod
-    def plot_route(lat_lon, processed_dataroot=False):
+    def plot_route(lat_lon, processed_dataroot=False, title="Map", save=False, freq_ratio=3, scenes=False):
         # Create a GeoDataFrame from latitude and longitude
         geometry = [Point(coord[1], coord[0]) for coord in lat_lon]
 
@@ -257,11 +273,14 @@ class GNSSParser:
         gdf = gdf.to_crs(epsg=3857)
         # projected coordinate system that represents locations in meters.
         # Convert the coordinates to a CRS that works with contextily basemaps (Web Mercator)
-        fig, ax = plt.subplots(figsize=(10, 10))  # Adjust width and height here
+        fig, ax = plt.subplots(figsize=(8, 12))  # Adjust width and height here
         # Plot the map with reference basemap
 
+        pos = 1.567e6
+        #ax.set_xlim(pos,10000 + pos )
+
         gdf.plot(marker="o", color="blue", markersize=1, ax=ax)
-        #ax.set_xlim(-800, 800)
+        ax.set_xlim(min(gdf.get_coordinates().x) - 500, max(gdf.get_coordinates().x) + 500)
 
         # Add reference map (OpenStreetMap)
         ctx.add_basemap(ax, crs=gdf.crs.to_string())
@@ -269,21 +288,34 @@ class GNSSParser:
         start = gdf.get_coordinates().iloc[0]
         end = gdf.get_coordinates().iloc[-1]
 
-        plt.scatter(start.x, start.y, label="Start", color="red")
+        if scenes:
+            sample_idxs = GNSSParser.samples_idx_from_scenes(scenes=scenes, max_len=len(gdf))
+            
+            ego_scenes_x = gdf.get_coordinates().x[sample_idxs]
+            ego_scenes_y = gdf.get_coordinates().y[sample_idxs]
+
+            plt.scatter(ego_scenes_x[::freq_ratio], ego_scenes_y[::freq_ratio], 5, color="red", label="Selected Scenes")
+
+        plt.scatter(start.x, start.y, label="Start", color="limegreen")
         plt.scatter(end.x, end.y, label="End", color="black")
 
 
         # Add labels, title, and other customizations
-        plt.title("Latitude/Longitude on Map")
+        plt.title(title)
         plt.xlabel("Longitude in meters")
         plt.ylabel("Latitude in meters")
+        plt.tight_layout()
         plt.legend()
 
-        if processed_dataroot: 
+        if save: 
             path = os.path.join(processed_dataroot, "plots")
             if not os.path.exists(path): 
                 os.makedirs(path)
 
-            plt.savefig(os.path.join(path,'route.png'))
-            print("Plot saved ", os.path.join(path,'route.png'))
+            if scenes:
+                file_name= os.path.join(path,f'route_{title}_str{scenes}.png')
+            else: 
+                file_name= os.path.join(path,f'route_{title}.png')
+            plt.savefig(file_name)
+            print("Plot saved ", file_name)
 

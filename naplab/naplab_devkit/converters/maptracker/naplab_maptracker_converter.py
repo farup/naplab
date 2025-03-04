@@ -10,8 +10,12 @@ import sys
 import os
 print(os.getcwd())
 
+import sys
 
-from naplab.naplab.naplab import NapLab
+# # /cluster/home/terjenf/naplab/naplab/naplab
+# sys.path.append("/cluster/home/terjenf/naplab/naplab/naplab")
+
+from naplab import NapLab
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Data converter arg parser')
@@ -22,6 +26,9 @@ def parse_args():
     parser.add_argument(
         '--trip',
         default='Trip077')
+    parser.add_argument(
+        '--info_prefix',
+        default='naplab')
     
     args = parser.parse_args()
     return args
@@ -113,6 +120,7 @@ def create_naplab_infos_map(root_path,
                 extrinsics=transform_matrix, # ego2cam
                 intrinsics=cs_record['nuscene_camera_intrinsics'],
                 fw_coeff=cs_record['fw_coeff'],
+                fw_coeff_0_start=cs_record['fw_coeff_0_start'],
                 bw_coeff=cs_record['bw_coeff'],
                 cx=cs_record['cx'],
                 cy=cs_record['cy'],
@@ -146,4 +154,4 @@ def create_naplab_infos_map(root_path,
 if __name__ == '__main__':
     args = parse_args()
 
-    create_naplab_infos_map(root_path=args.data_root, trip=args.trip)
+    create_naplab_infos_map(root_path=args.data_root, trip=args.trip, info_prefix=args.info_prefix)

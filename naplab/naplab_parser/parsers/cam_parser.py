@@ -125,13 +125,14 @@ class CamParser:
                     bw_coeff = [float(num) for num in bw_poly if len(num) > 2]
 
                     fw_coeff = f_theta_utils.get_fw_coeff(width, bw_coeff)
+                    fw_coeff_0_start = f_theta_utils.get_fw_coeff_start_0(width, bw_coeff)
 
                     if CamParser.nuscenes_cam:
                         nuscenes_cam_intrinsics, nusecnes_image_size = CamParser.get_nuscenes_cam_intrinsics(car_mask['name'])
 
                     cam_data[car_mask['name']] = {'roll_pitch_yaw': roll_pitch_yaw, 't':t, 'cx': cx, 'cy': cy, \
                         'height': height, 'width': width, 'bw_coeff': bw_coeff, \
-                            'fw_coeff': fw_coeff, 'nuscenes_cam_intrinsics': nuscenes_cam_intrinsics, 'nuscenes_image_size': nusecnes_image_size}
+                            'fw_coeff': fw_coeff, 'fw_coeff_0_start': fw_coeff_0_start, 'nuscenes_cam_intrinsics': nuscenes_cam_intrinsics, 'nuscenes_image_size': nusecnes_image_size}
 
                 except KeyError as e:
                     print("Error", e)

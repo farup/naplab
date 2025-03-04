@@ -75,6 +75,7 @@ class CalibratedSensor:
     nuscene_camera_intrinsics: list
     nuscene_image_size: list
     fw_coeff: list 
+    fw_coeff_0_start: list 
     bw_coeff: list
     cx: int
     cy: int 

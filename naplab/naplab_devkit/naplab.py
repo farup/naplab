@@ -8,6 +8,9 @@ from datetime import datetime
 from typing import Tuple, List, Iterable
 import pickle
 
+
+import imageio
+import cv2
 import matplotlib.pyplot as plt
 from PIL import Image
 
@@ -17,9 +20,19 @@ cam_layout = {
         'C8_R2': 2, 
         'C7_L2': 0, 
         'C4_rearCam': 4, 
-        'C6_L1':  5, 
-        'C5_R1':  3,
+        'C6_L1':  3, 
+        'C5_R1':  5,
     }
+
+
+naplab2nuscenes = {
+        'C1_front60Single': 'CAM_FRONT',
+        'C8_R2': 'CAM_FRONT_RIGHT', 
+        'C7_L2': 'CAM_FRONT_LEFT', 
+        'C4_rearCam': 'CAM_BACK', 
+        'C6_L1': 'CAM_BACK_LEFT', 
+        'C5_R1':  'CAM_BACK_RIGHT'
+        }
 
 
 class NapLab:
@@ -96,19 +109,25 @@ class NapLab:
     #  ind 2023: [Errno 2] No such file or directory: '/cluster/home/terjenf/NAPLab_car/data/Trip077/samples/C1_front60Single/C1_front60Single_1684740124055143'
     # ind 4023 '/cluster/home/terjenf/NAPLab_car/data/Trip077/samples/C1_front60Single/C1_front60Single_1684740324055064'
     # 4425 FileNotFoundError: [Errno 2] No such file or directory: '/cluster/home/terjenf/NAPLab_car/data/Trip077/samples/C1_front60Single/C1_front60Single_1684740363555034'
-    def plot_sample_canvas(self, cam_dict, gnss_timestamp, ind, save): 
+    def plot_sample_canvas(self, cam_dict, gnss_timestamp, ind, save=False, model_name=False): 
 
-        fig, axis = plt.subplots(2,3, figsize=(10,10))
+        fig, axis = plt.subplots(2,3, figsize=(8,6))
         axis = axis.flatten()
+
+        plt.subplots_adjust(wspace=0.0, hspace=0.0) 
         
         for cam_name, v in cam_dict.items():
             
             axis[cam_layout[cam_name]].imshow(Image.open(v[0]))
             axis[cam_layout[cam_name]].axis('off')
-            axis[cam_layout[cam_name]].set_title(cam_name)
+            axis[cam_layout[cam_name]].set_title(naplab2nuscenes[cam_name])
             axis[cam_layout[cam_name]].text(0.5, -0.1, v[1], ha='center', va='top', transform=axis[cam_layout[cam_name]].transAxes, fontsize=12, color='black')
+
         if save: 
-            file_location = os.path.join(self.dataroot, self.trip, "plots")
+            if model_name:
+                file_location = os.path.join(self.dataroot, self.trip, model_name)
+            else: 
+                file_location = os.path.join(self.dataroot, self.trip)
             if not os.path.exists(file_location):
                 os.makedirs(file_location)
 
@@ -116,11 +135,67 @@ class NapLab:
             plt.tight_layout()
             fig.suptitle(f"{self.trip} | sample index: {ind} | GNSS timestamp {gnss_timestamp}")
             plt.savefig(filename)
+            print("Saved image: ", filename)
         
         else: 
             plt.show()
             plt.clf()  
             plt.close()
+
+    def convert_images_to_video(self, image_files, output_file, fps):
+        # Get the list of image files in the input folder
+    
+        # Read the first image to get its dimensions
+        first_image = cv2.imread(image_files[0])
+        height, width, _ = first_image.shape
+
+        # Create a VideoWriter object to save the video
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Specify the codec for the output video file
+        video = cv2.VideoWriter(output_file, fourcc, fps, (width, height))
+
+        # Iterate over each image and write it to the video
+        for image_file in image_files:
+            
+            frame = cv2.imread(image_file)
+            video.write(frame)
+        
+        # Release the video writer and close the video file
+        video.release()
+        cv2.destroyAllWindows()
+
+
+    def save_video(self, image_list, out_path, name):
+
+        if not os.path.exists(out_path):
+            os.makedirs(out_path)
+        
+        out_file = os.path.join(out_path, name)
+
+
+        with imageio.get_writer(out_file, fps=10) as writer:
+            for image in image_list:
+                writer.append_data(image)
+
+
+    def save_as_video(self, image_list, mp4_output_path, name, scale=None):
+   
+        if not os.path.exists(mp4_output_path):
+            os.makedirs(mp4_output_path)
+
+        mp4_output_path = os.path.join(mp4_output_path, f"{name}_video.mp4")
+            
+        images = [Image.fromarray(img).convert("RGBA") for img in image_list]
+        if scale is not None:
+            w, h = images[0].size
+            images = [img.resize((int(w*scale), int(h*scale)), Image.Resampling.LANCZOS) for img in images]
+        images = [Image.new('RGBA', images[0].size, (255, 255, 255, 255))] + images
+        try:
+            imageio.mimsave(mp4_output_path, images,  format='MP4',fps=10)
+        except ValueError: # in case the shapes are not the same, have to manually adjust
+            resized_images = [img.resize(images[0].size, Image.Resampling.LANCZOS) for img in images]
+            print('Size not all the same, manually adjust...')
+            imageio.mimsave(mp4_output_path, resized_images,  format='MP4',fps=10)
+        print("mp4 saved to : ", mp4_output_path)
 
 
     def visualize_firste_sample_scene(self, scene_id, save=False):
@@ -132,6 +207,59 @@ class NapLab:
         sample_id = self._token2ind['sample'][sample_token]
 
         self.visualize_sample(sample_id, save=save)
+
+    def visualize_sample_compact(self, ind, model_name=None, save=True, return_image=True): 
+
+
+        sample = self.sample[ind]
+
+        data = sample['data']
+
+        gnss_timestamp = sample['timestamp']
+      
+        cam_dict = {}
+        for cam_name, cam_token in data.items():
+            sample_data = self.get('sample_data', cam_token)
+            filename = sample_data['filename']
+            #sample_data_timestamp = sample_data['timestamp']
+
+            cam_dict[cam_name] = [filename]
+        
+
+        fig, axis = plt.subplots(2,3, figsize=(6,3))
+        axis = axis.flatten()
+
+        fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
+
+        
+        for cam_name, v in cam_dict.items():
+            
+            axis[cam_layout[cam_name]].imshow(Image.open(v[0]))
+            axis[cam_layout[cam_name]].axis('off')
+            #axis[cam_layout[cam_name]].set_title(cam_name)
+            
+
+        if save: 
+            file_location = os.path.join(self.dataroot, self.trip, model_name, "plots")
+            if not os.path.exists(file_location):
+                os.makedirs(file_location)
+
+            filename = os.path.join(file_location, f"sample_{ind}.png")
+            plt.tight_layout()
+            fig.suptitle(f"{self.trip} | sample index: {ind} ")
+            plt.savefig(filename)
+            viz_image = imageio.imread(filename)
+            plt.clf()  
+            plt.close()
+            return viz_image
+
+    
+        plt.show()
+        plt.clf()  
+        plt.close()
+        return 
+
+
 
 
     def visualize_sample(self, ind, save=False):
@@ -193,14 +321,36 @@ if __name__ == "__main__":
     naplab = NapLab(dataroot=dataroot, trip=trip)
 
 
-    naplab.visualize_firste_sample_scene(50, save=True)
+    #naplab.visualize_firste_sample_scene(50, save=True)
 
-    naplab.visualize_sample(2000, save=True)
+    # naplab.visualize_sample(2000, save=True)
+    # # naplab.visualize_sample(2021, save=True)
+    # # naplab.visualize_sample(2022, save=True)
+    # # naplab.visualize_sample(2024, save=True)
+    # # naplab.visualize_sample(2025, save=True)
+    # # naplab.visualize_sample(2026, save=True)
+    # naplab.visualize_sample(2027, save=True)
+
+    # naplab.visualize_sample(2028, save=True)
+    # naplab.visualize_sample(2029, save=True)
+    # # naplab.visualize_sample(2030, save=True)
+    # naplab.visualize_sample(2031, save=True)
+    # naplab.visualize_sample(2032, save=True)
 
 
  
 
-    #naplab.visualize_sample(600, save=True)
+    # #naplab.visualize_sample(600, save=True)
+
+    # naplab.visualize_firste_sample_scene(105, save=True)
+
+
+    # naplab.visualize_sample(4220, save=True)
+    # naplab.visualize_sample(4240, save=True)
+    # naplab.visualize_sample(4245, save=True)
+    # naplab.visualize_sample(4260, save=True)
+    # naplab.visualize_sample(4270, save=True)
+    naplab.visualize_sample(4290, save=True)
 
     print("heis")
 

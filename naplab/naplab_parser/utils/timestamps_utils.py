@@ -37,8 +37,16 @@ def get_sync_diff(timestamps1, timestamps2):
     # print(f"Average time (in seconds) between timestamps: {seconds}")
     return seconds
 
+def fit_cam_timestamps(cam_timestamp,freq, gnss_len):
 
-def preparare_timestsamps(cam_timestamps):
+    for i in range(len(cam_timestamp)): 
+        if len(cam_timestamp[:-i-1][::int(freq)]) == gnss_len: 
+            return cam_timestamp[:-i-1]
+     
+
+
+
+def preparare_timestsamps(cam_timestamps, gnss_timestamps):
     """
     Some camera timestamps list are longer than other camera timestamps list for the same trip. 
     Cut out the end last time stamp 
@@ -49,28 +57,66 @@ def preparare_timestsamps(cam_timestamps):
     """
 
     lens = [len(timestamps) for timestamps in cam_timestamps.values()]
-    min_len = min(lens)
     
-    for cam_name, timestamp in cam_timestamps.items(): 
-        if len(timestamp) > min_len:
-            cam_timestamps[cam_name] = (timestamp[:-(len(timestamp) - min_len)]) 
 
-    return cam_timestamps
+    freq = get_freq_ration(cam_timestamps[list(cam_timestamps.keys())[0]],gnss_timestamps)
+    
+    lens_ = [len(timestamps[::int(freq)]) for timestamps in cam_timestamps.values()]
+
+    cams_timestamps_ = {}
+    for cam_name, cam_timestamp in cam_timestamps.items():
+        if len(cam_timestamp[::int(freq)]) > len(gnss_timestamps):
+            cam_timestamp_fitted = fit_cam_timestamps(cam_timestamp, freq, len(gnss_timestamps))
+            cams_timestamps_[cam_name] = cam_timestamp_fitted
+
+        elif len(cam_timestamp[::int(freq)]) < len(gnss_timestamps):
+            gnss_timestamps = gnss_timestamps[:len(cam_timestamp[::int(freq)])]
+
+
+        else: 
+            cams_timestamps_[cam_name] = cam_timestamp
+
+
+    # lens.append(int(len(gnss_timestamps) * freq))
+    # min_len = min(lens)
+
+    # extra = -2  # bad hack for align best sync func later
+    # # if min_len == lens[-1]:
+    # #     extra = -2
+    
+    # for cam_name, timestamp in cam_timestamps.items(): 
+    #     if len(timestamp) > min_len:
+    #         cam_timestamps[cam_name] = (timestamp[:-((  len(timestamp) - min_len) - extra)]) 
+    #     else:
+    #         cam_timestamps[cam_name] = (timestamp[:extra])
+
+
+    # if len(gnss_timestamps) * freq > min_len: 
+    #     gnss_timestamps_prep = gnss_timestamps[: len(gnss_timestamps) - min_len]
+
+    return cams_timestamps_, gnss_timestamps
  
 
-def get_best_syncs(cams_timestamps, gnss_timestamps):
+def get_best_syncs(cams_timestamps, gnss_timestamps, output_path_plot=None, save=False):
     """ Calculate the sync alignment in microsconds with different start indexes"""
 
     print("Starting Best Sync Calculations...")
     res = {}
     for cam_name, cam_timestamps in cams_timestamps.items(): 
         freq_ratio = round(get_freq_ration(cam_timestamps, gnss_timestamps))
+
+        # if len(cam_timestamps[::freq_ratio]) == len(gnss_timestamps):
+        #     res[cam_name] = get_best_start_stop_index_same_len(cam_timestamps, gnss_timestamps, freq_ratio)
+        
+        # else: 
         res[cam_name] = get_best_start_stop_index(cam_timestamps, gnss_timestamps, freq_ratio)
 
+
+    plot_sync_diff(res, save=save, output_path=output_path_plot)
     return res
 
 
-def get_best_start_stop_index(file_1_timestamps, file_2_timestamps, freq_ratio, runs=20):
+def get_best_start_stop_index_same_len(file_1_timestamps, file_2_timestamps, freq_ratio, runs=20):
     """
     Iterates through different starting poistions for the longest list, 
     and corresponding end positions for the shortes list. 
@@ -80,7 +126,7 @@ def get_best_start_stop_index(file_1_timestamps, file_2_timestamps, freq_ratio, 
     """
 
 
-    assert len(file_1_timestamps[::freq_ratio]) >= len(file_2_timestamps), f"Assume arg1 can be sampled every {freq_ratio}, due to higher freq "
+    #assert len(file_1_timestamps[::freq_ratio]) >= len(file_2_timestamps), f"Assume arg1 can be sampled every {freq_ratio}, due to higher freq "
     dict_best = {'best_score': 1000000000}
     
  
@@ -130,17 +176,77 @@ def get_best_start_stop_index(file_1_timestamps, file_2_timestamps, freq_ratio, 
 
     return dict_best
 
+def get_best_start_stop_index(file_1_timestamps, file_2_timestamps, freq_ratio, runs=20):
+    """
+    Iterates through different starting poistions for the longest list, 
+    and corresponding end positions for the shortes list. 
+    Finds the best section => camera start index and gnss end index 
+    
+    
+    """
 
 
-def plot_sync_diff(res, save=False):
+    assert len(file_1_timestamps[::freq_ratio]) >= len(file_2_timestamps), f"Assume arg1 can be sampled every {freq_ratio}, due to higher freq "
+    dict_best = {'best_score': 1000000000}
+    
+ 
+    seconds_list = []
+    arg1_index_starts = []
+    arg2_index_ends = []
+
+    for i in range(runs):
+        if i == 0:
+            #print("Start")
+            seconds = get_sync_diff(file_1_timestamps[::freq_ratio], file_2_timestamps)
+            if seconds < dict_best['best_score']:
+                dict_best['best_score'] = seconds 
+                dict_best['arg1_index_start'] = 0
+                dict_best['arg2_index_end'] = 0
+                dict_best['arg1_index_start_timestamp'] = file_1_timestamps[i]
+                dict_best['arg2_index_end_timestamp'] = file_1_timestamps[i]
+            seconds_list.append(seconds)
+            arg1_index_starts.append(0)
+            arg2_index_ends.append(0)
+
+            arg1_index_start =  3*(i+1)
+            arg2_index_end = -1
+
+        else:
+            arg1_index_start =  3*(i+1)
+            arg2_index_end = -i-1
+
+        # print(f"\nArgument1 start indx: {arg1_index_start}, Argument2 end index: {arg2_index_end}")
+
+        seconds = get_sync_diff(file_1_timestamps[arg1_index_start::freq_ratio], file_2_timestamps[:arg2_index_end])
+        if seconds < dict_best['best_score']:
+            dict_best['best_score'] = seconds 
+            dict_best['arg1_index_start'] = arg1_index_start
+            dict_best['arg2_index_end'] = arg2_index_end
+            dict_best['arg1_index_start_timestamp'] = file_1_timestamps[i]
+            dict_best['arg2_index_end_timestamp'] = file_1_timestamps[i]
+
+        seconds_list.append(seconds)
+        arg1_index_starts.append(arg1_index_start)
+        arg2_index_ends.append(arg2_index_end)
+                
+    dict_best['seconds_list']  = seconds_list
+    dict_best['arg1_index_starts']  = arg1_index_starts
+    dict_best['arg2_index_ends']  = arg2_index_ends
+
+
+    return dict_best
+
+
+
+def plot_sync_diff(res, output_path=None, save=False, cam_select="C4_rearCam"):
     fig, axis = plt.subplots(1,2, figsize=(10,10)) 
 
 
     for cam_name, v in res.items(): 
 
-        if cam_name == "C1_front60Single":
-            axis[0].scatter(v['arg1_index_start'], v['best_score'], color='red', label=f"Best {cam_name}", marker='o')
-            axis[1].scatter(v['arg2_index_end'], v['best_score'], color='red',label=f"Best {cam_name}",  marker='o')
+        if cam_name == cam_select:
+            axis[0].scatter(v['arg1_index_start'], v['best_score'], color='red', label=f"Selected {cam_name}", marker='o')
+            axis[1].scatter(v['arg2_index_end'], v['best_score'], color='red',label=f"Selected {cam_name}",  marker='o')
 
         axis[0].plot(v['arg1_index_starts'], v['seconds_list'], label=f"{cam_name}")
         axis[1].plot(v['arg2_index_ends'], v['seconds_list'], label=f"{cam_name}")
@@ -155,14 +261,16 @@ def plot_sync_diff(res, save=False):
 
 
 
-    fig.suptitle("Average Synchronisation Time Difference")
+    #fig.suptitle("Average Synchronisation Time Difference")
     
     plt.tight_layout()
     plt.legend()
    
 
     if save: 
-        plt.savefig("./sync_diff.png")
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+        plt.savefig(os.path.join(output_path, "sync_diff.png"))
     else:
         plt.show()
     

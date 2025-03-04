@@ -6,7 +6,7 @@ from naplab.naplab_parser.parsers.gnss_parser import GNSSParser
 from naplab.naplab_parser.parsers.cam_parser import CamParser
 import errno
 
-from naplab.naplab_parser.utils import parsing_utils, timestamps_utils, transformation_utils
+from naplab.naplab_parser.utils import parsing_utils, timestamps_utils, transformation_utils, f_theta_utils
 from naplab.naplab_parser.tables import Scene, Sample, SampleData, CalibratedSensor, EgoPose, NabLabMap
 
 
@@ -35,12 +35,14 @@ class NapLabParser:
         self.load_paths()
         cams_timestamps = parsing_utils.get_cams_timestamps(self.cams_timestamps_files)
 
-        self.prep_cams_timestamps = timestamps_utils.preparare_timestsamps(cams_timestamps) # all same length
+        
         self.lat_lon, self.gnss_timestamps = GNSSParser.get_gnns_data(self.gnss_file[0])
 
+        self.prep_cams_timestamps, self.gnss_timestamps = timestamps_utils.preparare_timestsamps(cams_timestamps, self.gnss_timestamps[:]) # all same length
+        # Trip077 len cam 16 570, len gnss 5524 * 3 = 16 572  # len(self.prep_cams_timestamps['C6_L1'])
 
         self.get_average_sync_diff(self.prep_cams_timestamps, self.gnss_timestamps)
-        self.res = timestamps_utils.get_best_syncs(self.prep_cams_timestamps, self.gnss_timestamps)
+        self.res = timestamps_utils.get_best_syncs(self.prep_cams_timestamps, self.gnss_timestamps, output_path_plot=self.processed_dataroot, save=True)
 
         self.set_start_stop_indexes('C4_rearCam')
 
@@ -89,7 +91,7 @@ class NapLabParser:
 
         results = []
         for cam_name, cam_timestamps in cams_timestamps.items():
-            freq_ratio = round(timestamps_utils.get_freq_ration(cam_timestamps,gnss_timestamps ))
+            freq_ratio = round(timestamps_utils.get_freq_ration(cam_timestamps,gnss_timestamps))
             sec = timestamps_utils.get_sync_diff(cam_timestamps[::freq_ratio], gnss_timestamps)
             results.append(sec)
 
@@ -115,18 +117,17 @@ class NapLabParser:
         self.get_average_sync_diff(self.best_cams_timestamps, self.best_gnss_timestamps)
 
 
-    def visualize_route(self, processed_dataroot):
+    def visualize_route(self, save=False, scenes=False):
 
-        GNSSParser.plot_route(self.lat_lon[:], processed_dataroot=processed_dataroot)
+        GNSSParser.plot_route(self.lat_lon[:], processed_dataroot=self.processed_dataroot, title=self.trip, save=save, freq_ratio=self.freq_ratio, scenes=scenes)
 
-    def visualize_route_bearings(self, refrence_frame=False, scenes=False, save=False): 
+    def visualize_route_bearings(self, refrence_frame=False, scenes=False, save=False):
 
         GNSSParser.plot_route_bearings(bearings=self.bearings[:], ego_xy_positions=self.ego_xy_position[:], freq_ratio=self.freq_ratio, refrence_frame=refrence_frame, scenes=scenes, save=save, processed_dataroot=self.processed_dataroot)
     
     def visualize_sync_diffs(self, save=False):
 
         timestamps_utils.plot_sync_diff(self.res, save=save)
-
 
     def extract_images(self, scenes=False):
 
@@ -143,7 +144,6 @@ class NapLabParser:
         else: 
             print("")
 
-        # CamParser.extract_images(raw_dataroot=self.raw_dataroot)
 
     def extract_images_samples_idx(self, frames_idx, cam_folders, cams_files): 
 
@@ -161,7 +161,6 @@ class NapLabParser:
         cb_sensors = self.create_calibrated_sensor()
         ego_poses = self.create_ego_pose()
         scenes, samples, samples_data = self.create_samples(naplab_map=naplab_map, calibrated_sensors=cb_sensors, ego_poses=ego_poses)
-
 
         parsing_utils.save_tables_json(self.processed_dataroot, naplab_map, "naplab_map.json")
         parsing_utils.save_tables_json(self.processed_dataroot, cb_sensors, "calibrated_sensors.json")
@@ -186,20 +185,23 @@ class NapLabParser:
 
         for i, (k, v) in enumerate(self.camera_parameters.items()):
             cd_sensor = CalibratedSensor(translation=v['t'], rotation=transformation_utils.euler_to_quaternion_yaw(v['roll_pitch_yaw']),\
-                 cx=v['cx'], cy=v['cy'], fw_coeff=v['fw_coeff'], bw_coeff=v['bw_coeff'], nuscene_camera_intrinsics=v['nuscenes_cam_intrinsics'], nuscene_image_size=v['nuscenes_image_size'])
+                 cx=v['cx'], cy=v['cy'], fw_coeff=v['fw_coeff'], fw_coeff_0_start=v['fw_coeff_0_start'], bw_coeff=v['bw_coeff'], nuscene_camera_intrinsics=v['nuscenes_cam_intrinsics'], nuscene_image_size=v['nuscenes_image_size'])
             cd_sensors.append(cd_sensor.__dict__)
 
         return cd_sensors
 
 
-    def create_ego_pose(self): 
+    def create_ego_pose(self, refrence_frame_bearings=500): 
         ego_poses = []
 
         x_translation = self.ego_xy_position.x - self.ego_xy_position.x[0]
         y_translation = self.ego_xy_position.y - self.ego_xy_position.y[0]
 
+
+        dir_bearings = self.bearings - self.bearings[refrence_frame_bearings]
+
         for i, gnss_timestamp in enumerate(self.best_gnss_timestamps): 
-            ego_pose = EgoPose(translation=[float(x_translation[i]), float(y_translation[i]), float(0)], rotation=0, timestamp=gnss_timestamp)
+            ego_pose = EgoPose(translation=[float(x_translation[i]), float(y_translation[i]), float(0)], rotation=transformation_utils.euler_to_quaternion_yaw([0,0,dir_bearings[i]]), timestamp=gnss_timestamp)
             ego_poses.append(ego_pose.__dict__)
         
 
@@ -255,13 +257,11 @@ class NapLabParser:
         return scenes, samples, samples_data
 
         
-
-
 if __name__ == "__main__": 
 
 
     raw_dataroot = "/cluster/home/terjenf/MapTR/NAP_raw_data"
-    trip = "Trip077"
+    trip = "Trip086"
     processed_dataroot = "/cluster/home/terjenf/naplab/data"
     nuscene_path = "/cluster/home/terjenf/naplab/naplab/naplab_parser/metadata_nuscenes/nuscene_metadata.json"
 
@@ -273,18 +273,46 @@ if __name__ == "__main__":
         'C6_L1',
         'C5_R1']
 
-
     naplab_parser = NapLabParser(raw_dataroot=raw_dataroot, trip=trip, processed_dataroot=processed_dataroot, selected_cams=selected_cams, nuscnes_path=nuscene_path)
 
-    naplab_parser.visualize_route(processed_dataroot=processed_dataroot)
+    # naplab_parser.visualize_route(save=True)
+    # scenes_plot = [50,51,52,53,54,55,56,57,58,59,60, 105,106,107,108,109,110]
+    # naplab_parser.visualize_route(save=True, scenes=scenes_plot)
+    # #naplab_parser.visualize_route(save=True, scenes=(50,60))
 
-    naplab_parser.visualize_route_bearings(refrence_frame=500, save=True)
-    naplab_parser.visualize_route_bearings(refrence_frame=500, scenes=(50,60), save=True)
-    naplab_parser.visualize_route_bearings(refrence_frame=500, scenes=(105,131), save=True)
+    # # naplab_parser.visualize_route_bearings(refrence_frame=500, save=True)
+    # naplab_parser.visualize_route_bearings(refrence_frame=500, save=True)
+    # naplab_parser.visualize_route_bearings(refrence_frame=0, save=True)
 
 
-    #naplab_parser.extract_images(scenes=(50,60))
+    # Front
+    bw_coeff = naplab_parser.camera_parameters['C1_front60Single']['bw_coeff']
+    w = naplab_parser.camera_parameters['C1_front60Single']['width']
+    
+    fw_coeff_list, thetas, r = f_theta_utils.get_fw_coeff_start_0(bw_coeff=bw_coeff, w=w, return_all=True)
+    f_theta_utils.plot_forward_only(fw_coeff_list, thetas, r, output_path=naplab_parser.processed_dataroot, cam_name="C1_front60Single", save=True)
 
-    description="Handels -> Eglseterbru -> Nidarosdomen -> Samfundet -> Høyskoleringen"
 
-    naplab_parser.create_database(description=description)
+
+    fw_coeff_list, thetas, r = f_theta_utils.get_fw_coeff_start_sigle_0(bw_coeff=bw_coeff, w=w, return_all=True)
+    f_theta_utils.plot_forward_only(fw_coeff_list, thetas, r, output_path=naplab_parser.processed_dataroot, cam_name="C1_front60Single", save=True)
+
+
+    naplab_parser.visualize_route(save=True)
+
+    # bw_coeff = naplab_parser.camera_parameters['C7_L2']['bw_coeff']
+    # w = naplab_parser.camera_parameters['C1_front60Single']['width']
+    
+
+    # fw_coeff_list, thetas, r = f_theta_utils.get_fw_coeff_start_0(bw_coeff=bw_coeff, w=w, return_all=True)
+
+    # f_theta_utils.plot_forward(fw_coeff_list, thetas, r, output_path=naplab_parser.processed_dataroot, cam_name="C7_L2", save=True)
+
+
+
+    # f_theta_utils.plot_forward(fw_coeff_list, thetas, r, output_path=naplab_parser.processed_dataroot, cam_name="C7_L2", save=True)
+    # naplab_parser.extract_images(scenes=(105,110))
+
+    # description="Handels -> Eglseterbru -> Nidarosdomen -> Samfundet -> Høyskoleringen"
+
+    #naplab_parser.create_database(description=description)
