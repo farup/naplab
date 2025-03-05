@@ -5,5 +5,5 @@
 ### StreamMapNet Predicitons
 
 
-![StreamMapNet](/cluster/home/terjenf/naplab/figs/gif/streammapnet.gif)
+![StreamMapNet](figs/gif/streammapnet.gif)
 
