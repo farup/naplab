@@ -100,17 +100,3 @@ class EgoPose:
         self.token = generate_token()  # Generate token after initialization
 
 
-  
-# class Log: 
-#     def __init__(self, vehicle_name, date_caputred, location):
-#         self.token = generate_token()
-#         self.vehicle_name = vechile_name
-#         self.date_captured = date_caputred
-#         self.location = location
-
-
-# class Sensor: 
-#     def __init__(self, channel, modility):
-#         self.token = generate_token()
-#         self.channel = channel
-#         self.modality = channel

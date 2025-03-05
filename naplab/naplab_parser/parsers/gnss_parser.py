@@ -173,7 +173,7 @@ class GNSSParser:
 
         np_lat_lon = np.array(lat_lon)
         filter_lat_lon = np_lat_lon[np_lat_lon != None]
-        return filter_lat_lon.reshape(-1, 2), timestamps_gnss
+        return filter_lat_lon.reshape(-1, 2).tolist(), timestamps_gnss
     
     @staticmethod
     def samples_idx_from_scenes(scenes, max_len):
@@ -275,9 +275,6 @@ class GNSSParser:
         # Convert the coordinates to a CRS that works with contextily basemaps (Web Mercator)
         fig, ax = plt.subplots(figsize=(8, 12))  # Adjust width and height here
         # Plot the map with reference basemap
-
-        pos = 1.567e6
-        #ax.set_xlim(pos,10000 + pos )
 
         gdf.plot(marker="o", color="blue", markersize=1, ax=ax)
         ax.set_xlim(min(gdf.get_coordinates().x) - 500, max(gdf.get_coordinates().x) + 500)

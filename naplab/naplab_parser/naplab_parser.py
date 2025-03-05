@@ -259,9 +259,8 @@ class NapLabParser:
         
 if __name__ == "__main__": 
 
-
     raw_dataroot = "/cluster/home/terjenf/MapTR/NAP_raw_data"
-    trip = "Trip086"
+    trip = "Trip083"
     processed_dataroot = "/cluster/home/terjenf/naplab/data"
     nuscene_path = "/cluster/home/terjenf/naplab/naplab/naplab_parser/metadata_nuscenes/nuscene_metadata.json"
 
@@ -313,6 +312,7 @@ if __name__ == "__main__":
     # f_theta_utils.plot_forward(fw_coeff_list, thetas, r, output_path=naplab_parser.processed_dataroot, cam_name="C7_L2", save=True)
     # naplab_parser.extract_images(scenes=(105,110))
 
-    # description="Handels -> Eglseterbru -> Nidarosdomen -> Samfundet -> Høyskoleringen"
+    #description="Handels -> Eglseterbru -> Nidarosdomen -> Samfundet -> Høyskoleringen"
+    description="Handels"
 
-    #naplab_parser.create_database(description=description)
+    naplab_parser.create_database(description=description)

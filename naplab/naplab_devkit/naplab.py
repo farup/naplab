@@ -8,12 +8,10 @@ from datetime import datetime
 from typing import Tuple, List, Iterable
 import pickle
 
-
 import imageio
 import cv2
 import matplotlib.pyplot as plt
 from PIL import Image
-
 
 cam_layout = {
         'C1_front60Single': 1,
@@ -98,17 +96,10 @@ class NapLab:
             for ind, member in enumerate(getattr(self, table)):
                 self._token2ind[table][member['token']] = ind
 
-        # for record in self.sample_data:
-        #     if record['is_key_frame']:
-        #         sample_record = self.get('sample', record['sample_token'])
-        #         sample_record['data'][record['channel']] = record['token']
-
         if verbose:
             print("Done reverse indexing in {:.1f} seconds.\n======".format(time.time() - start_time))
 
-    #  ind 2023: [Errno 2] No such file or directory: '/cluster/home/terjenf/NAPLab_car/data/Trip077/samples/C1_front60Single/C1_front60Single_1684740124055143'
-    # ind 4023 '/cluster/home/terjenf/NAPLab_car/data/Trip077/samples/C1_front60Single/C1_front60Single_1684740324055064'
-    # 4425 FileNotFoundError: [Errno 2] No such file or directory: '/cluster/home/terjenf/NAPLab_car/data/Trip077/samples/C1_front60Single/C1_front60Single_1684740363555034'
+
     def plot_sample_canvas(self, cam_dict, gnss_timestamp, ind, save=False, model_name=False): 
 
         fig, axis = plt.subplots(2,3, figsize=(8,6))
@@ -143,14 +134,14 @@ class NapLab:
             plt.close()
 
     def convert_images_to_video(self, image_files, output_file, fps):
-        # Get the list of image files in the input folder
-    
+        
+
         # Read the first image to get its dimensions
         first_image = cv2.imread(image_files[0])
         height, width, _ = first_image.shape
 
         # Create a VideoWriter object to save the video
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Specify the codec for the output video file
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  
         video = cv2.VideoWriter(output_file, fourcc, fps, (width, height))
 
         # Iterate over each image and write it to the video
@@ -320,36 +311,6 @@ if __name__ == "__main__":
 
     naplab = NapLab(dataroot=dataroot, trip=trip)
 
-
-    #naplab.visualize_firste_sample_scene(50, save=True)
-
-    # naplab.visualize_sample(2000, save=True)
-    # # naplab.visualize_sample(2021, save=True)
-    # # naplab.visualize_sample(2022, save=True)
-    # # naplab.visualize_sample(2024, save=True)
-    # # naplab.visualize_sample(2025, save=True)
-    # # naplab.visualize_sample(2026, save=True)
-    # naplab.visualize_sample(2027, save=True)
-
-    # naplab.visualize_sample(2028, save=True)
-    # naplab.visualize_sample(2029, save=True)
-    # # naplab.visualize_sample(2030, save=True)
-    # naplab.visualize_sample(2031, save=True)
-    # naplab.visualize_sample(2032, save=True)
-
-
- 
-
-    # #naplab.visualize_sample(600, save=True)
-
-    # naplab.visualize_firste_sample_scene(105, save=True)
-
-
-    # naplab.visualize_sample(4220, save=True)
-    # naplab.visualize_sample(4240, save=True)
-    # naplab.visualize_sample(4245, save=True)
-    # naplab.visualize_sample(4260, save=True)
-    # naplab.visualize_sample(4270, save=True)
     naplab.visualize_sample(4290, save=True)
 
     print("heis")
