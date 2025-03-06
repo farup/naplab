@@ -41,7 +41,7 @@ HD map modules with OpenMMLab utilize an earlier version numpy. To be able to co
 
 
 ```
-python -m venv naplab_conv
+python3.8 -m venv naplab_conv
 ```
 
 ```
