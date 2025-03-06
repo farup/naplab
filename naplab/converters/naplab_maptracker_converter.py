@@ -15,7 +15,8 @@ import sys
 # # /cluster/home/terjenf/naplab/naplab/naplab
 # sys.path.append("/cluster/home/terjenf/naplab/naplab/naplab")
 
-from naplab import NapLab
+
+from naplab_devkit import NapLab
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Data converter arg parser')
