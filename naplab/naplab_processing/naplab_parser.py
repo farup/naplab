@@ -2,12 +2,23 @@ import os
 import numpy as np
 import copy
 
-from naplab.naplab_parser.parsers.gnss_parser import GNSSParser
-from naplab.naplab_parser.parsers.cam_parser import CamParser
+
+
+from .parsers import GNSSParser
+from .parsers import CamParser
+
 import errno
 
-from naplab.naplab_parser.utils import parsing_utils, timestamps_utils, transformation_utils, f_theta_utils
-from naplab.naplab_parser.tables import Scene, Sample, SampleData, CalibratedSensor, EgoPose, NabLabMap
+from .utils import parsing_utils, timestamps_utils, transformation_utils, f_theta_utils
+from .tables import Scene, Sample, SampleData, CalibratedSensor, EgoPose, NabLabMap
+
+
+# from naplab.naplab_parser.parsers.gnss_parser import GNSSParser
+# from naplab.naplab_parser.parsers.cam_parser import CamParser
+# import errno
+
+# from naplab.naplab_parser.utils import parsing_utils, timestamps_utils, transformation_utils, f_theta_utils
+# from naplab.naplab_parser.tables import Scene, Sample, SampleData, CalibratedSensor, EgoPose, NabLabMap
 
 
 

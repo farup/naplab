@@ -1,4 +1,3 @@
-print("naplab devkit inner")
 
 from .naplab import NapLab
 

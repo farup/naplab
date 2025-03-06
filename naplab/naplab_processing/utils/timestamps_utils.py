@@ -7,7 +7,7 @@ from . import parsing_utils
 import matplotlib.pyplot as plt
 
 
-from naplab.naplab_parser.parsers.gnss_parser import GNSSParser
+from naplab_processing import GNSSParser
 
 
 def get_avgerage_freq(timestamps): 
