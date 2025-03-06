@@ -1,6 +1,6 @@
 ### Integration of f-theta camera model to StreamMapNet 
 
-The code is only attached for example. It does not compile/run here. Only essential modified code is provided. It needs to be registered in "__ini__.py" in OpenMMLab projects to be dected and used. 
+The code provided is for example, as it does not compile/run here. Only essential modified code is provided. To use in OpenMMLab projects, new modules need to be registered in "__init__.py", for the package. 
 
 ### Bevformer 
 
