@@ -37,16 +37,33 @@ Navigate to the notebooks folder in the naplab folder.
 
 ### To convert
 
-HD map modules with OpenMMLab utilize an earlier version numpy. To be able to correctly read the converted pickle file, we need to use the same numpy version to create it. For me this is numpy 1.24.4.
+HD map modules with OpenMMLab utilize an earlier version numpy. To be able to correctly read the converted pickle file, we need to use the same numpy version to create it. For me this is numpy 1.24.4. We create a new environment: 
+
+```
+conda create --name naplab_conv python=3.8
+```
 
 
 ```
-python -m venv naplab_conv
+pip install -r naplab/requirements.txt
 ```
+
+If some libs doesn't install, that's ok.
+
 
 ```
 pip install numpy==1.24.4
 ```
+
+```
+conda install ipykernel
+```
+
+```
+pip install pyquaternion, imageio, opencv-python, matplotlib
+```
+
+
 
 
 ### StreamMapNet Predicitons
